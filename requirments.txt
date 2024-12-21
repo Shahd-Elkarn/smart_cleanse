@@ -1,0 +1,10 @@
+streamlit
+pandas
+matplotlib
+seaborn
+base64
+langchain
+langchain-community
+sentence-transformers
+FAISS
+huggingface-hub
