@@ -1,5 +1,6 @@
 # smart_cleanse
 Data Quality Analysis and Cleaning Tool
+
 🌟 Overview
 This project is a Streamlit-based interactive tool designed to assist in exploring, cleaning, and analyzing datasets. Whether you're dealing with Excel (.xlsx) or CSV files, this tool provides a user-friendly interface for performing common data quality tasks, advanced transformations, and exploratory data analysis (EDA).
 
@@ -56,11 +57,15 @@ Upload your dataset in .xlsx or .csv format.
 Explore, clean, and transform your data using the intuitive interface.
 Use the RAG Assistant to ask detailed questions about your data.
 Download the cleaned dataset for your records or further analysis.
+
+
 📊 Tech Stack
 Streamlit: For building the interactive web application.
 Pandas: For data manipulation and analysis.
 Matplotlib/Seaborn: For data visualization.
 Ollama API: For AI chatbot integration.
+
+
 🌟 Why Use This Tool?
 This project is perfect for data professionals and students looking to quickly clean and analyze datasets without diving into complex code. It brings the power of EDA and data transformation to your fingertips with an AI-enhanced assistant for deeper insights.
 
