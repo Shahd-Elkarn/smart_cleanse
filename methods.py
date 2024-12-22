@@ -4,6 +4,44 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import base64
 from io import StringIO
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain.chains import create_history_aware_retriever
+from langchain_community.llms import Ollama
+from sentence_transformers import SentenceTransformer, util
+from langchain.schema import Document
+
+
+bot_template = '''
+<div style="display: flex; align-items: center; margin-bottom: 10px;">
+    <div style="flex-shrink: 0; margin-right: 10px;">
+        <img src="https://uxwing.com/wp-content/themes/uxwing/download/communication-chat-call/answer-icon.png" 
+             style="max-height: 50px; max-width: 50px; border-radius: 50%; object-fit: cover;">
+    </div>
+    <div style="background-color: #f1f1f1; padding: 10px; border-radius: 10px; max-width: 75%; word-wrap: break-word; overflow-wrap: break-word;">
+        {msg}
+    </div>
+</div>
+'''
+
+user_template = '''
+<div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: flex-end;">
+    <div style="flex-shrink: 0; margin-left: 10px;">
+        <img src="https://cdn.iconscout.com/icon/free/png-512/free-q-characters-character-alphabet-letter-36051.png?f=webp&w=512" 
+             style="max-height: 50px; max-width: 50px; border-radius: 50%; object-fit: cover;">
+    </div>    
+    <div style="background-color: #007bff; color: white; padding: 10px; border-radius: 10px; max-width: 75%; word-wrap: break-word; overflow-wrap: break-word;">
+        {msg}
+    </div>
+</div>
+'''
 
 def describe_data(df):
     """Generates descriptive statistics for the DataFrame."""
@@ -189,6 +227,117 @@ def column_names_analysis(df):
     #             except Exception as e:
     #                 st.error(f"Error renaming columns: {e}")
     return df
+
+
+
+
+def prepare_and_split_csv(csv_files):
+    split_docs = []
+    for csv_file in csv_files:
+        df = pd.read_csv(csv_file)
+        text = df.to_string(index=False, header=True)
+        documents = [Document(page_content=text, metadata={"source": csv_file.name})]
+        splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=512,
+            chunk_overlap=256,
+            separators=["\n\n", "\n", " "]
+        )
+        split_docs.extend(splitter.split_documents(documents))
+    return split_docs
+
+def prepare_and_split_excel(excel_files):
+    split_docs = []
+    for excel_file in excel_files:
+        try:
+            df = pd.read_excel(excel_file, engine='openpyxl')
+        except Exception as e:
+            st.error(f"Error reading Excel file: {str(e)}")
+            return []
+        text = df.to_string(index=False, header=True)
+        documents = [Document(page_content=text, metadata={"source": excel_file.name})]
+        splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=512, 
+            chunk_overlap=256,
+            separators=["\n\n", "\n", " "]
+        )
+        split_docs.extend(splitter.split_documents(documents))
+    return split_docs
+
+def ingest_into_vectordb(split_docs):
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    db = FAISS.from_documents(split_docs, embeddings)
+    DB_FAISS_PATH = 'vectorstore/db_faiss'
+    db.save_local(DB_FAISS_PATH)
+    return db
+
+def get_conversation_chain(retriever):
+    llm = Ollama(model="llama3.2")
+
+    # Improved contextualize question prompt
+    contextualize_q_system_prompt = (
+    "You are an intelligent assistant for analyzing structured datasets. "
+    "Based on the most recently uploaded dataset, use the chat history and the latest user question "
+    "to generate a response that is accurate, relevant, and concise. "
+    "Always rely solely on the provided dataset context. "
+    "Avoid assumptions, unrelated information, or external data. "
+    "Ensure your answers are directly tied to the query and dataset context, and concise while addressing the question effectively."
+)
+
+
+
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_q_prompt
+    )
+
+    # Improved answer question prompt
+    system_prompt = (
+    "You are a highly skilled assistant for analyzing structured datasets. "
+    "Your role is to assist users in understanding and analyzing the most recently uploaded dataset, "
+    "providing precise, accurate, and concise answers limited to 50 words. "
+    "Always base your responses exclusively on the provided dataset context. "
+    "If numerical or analytical reasoning is required, include a brief explanation using the dataset's details. "
+    "Avoid assumptions, external knowledge, or unrelated information. "
+    "Maintain clarity and relevance while avoiding unnecessary details. "
+    "Ensure responses are actionable and directly tied to the context provided:\n\n{context}"
+)
+
+
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+
+    # Statefully manage chat history
+    store = {}
+
+    def get_session_history(session_id: str) -> BaseChatMessageHistory:
+        if session_id not in store:
+            store[session_id] = ChatMessageHistory()
+        return store[session_id]
+
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
+        get_session_history,
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+    return conversational_rag_chain
+
+
 
 def download_dataset(df):
     """Downloads the DataFrame as a CSV file."""

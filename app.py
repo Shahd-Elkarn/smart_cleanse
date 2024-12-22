@@ -5,7 +5,7 @@ from methods import *
 
 def main():
     st.set_page_config(layout="wide")
-    st.sidebar.title("Data Quality Analysis")
+    st.sidebar.title("Data Quality Analysis & Chating")
     uploaded_file = st.sidebar.file_uploader("Upload Dataset", type=["csv", "xlsx"], key='file_uploader')
 
     if uploaded_file is not None:
@@ -24,12 +24,12 @@ def main():
             df = st.session_state['data'].copy()
 
         # Sidebar Menu
-        st.sidebar.title("Analysis Section")
+        st.sidebar.title("Analysis & Chat")
         section = st.sidebar.radio(
             "Choose From Here: ",
             (
                 "Show Data",
-                "Data Info",
+                "Info Data",
                 "Describe Data",
                 "Column Name Analysis",
                 "Missing Value Analysis",
@@ -37,7 +37,8 @@ def main():
                 "Handle Duplicates",
                 "Outlier Analysis",
                 "Data Visualization",
-                "Correlation Matrix"
+                "Correlation Matrix",
+                "Chat Using RAG"
             )
         )
 
@@ -46,8 +47,8 @@ def main():
             st.header("Data")
             st.write(df.head())
         #Info
-        elif section =="Data Info":
-            st.header("Data Info")
+        elif section =="Info Data":
+            st.header("Info Data")
             st.table(info_data(df))
         # Describe Data
         elif section == "Describe Data":
@@ -159,6 +160,49 @@ def main():
             fig = correlation_matrix(df)
             if fig is not None:
                 st.pyplot(fig)
+
+                
+        # Chat with Data
+        elif section == "Chat Using RAG":
+            st.title("Chat with your Data")
+            process_files = st.checkbox("Process Files for Chat", value=False)
+
+            if process_files:
+                split_docs = []
+                try:
+                    if uploaded_file.name.endswith(".csv"):
+                       split_docs.extend(prepare_and_split_csv([uploaded_file]))
+                    if uploaded_file.name.endswith((".xlsx", ".xls")):
+                        split_docs.extend(prepare_and_split_excel([uploaded_file]))
+                    vector_db = ingest_into_vectordb(split_docs)
+                    retriever = vector_db.as_retriever()
+                    conversational_chain = get_conversation_chain(retriever)
+                    st.session_state['conversational_chain'] = conversational_chain
+                    st.success("Documents processed and vector database created!")
+                except Exception as e:
+                    st.error(f"Error processing files: {e}")
+
+            if 'conversational_chain' in st.session_state:
+                user_input = st.text_input("Ask a question about your data:")
+                if st.button("Submit"):
+                    try:
+                        session_id = "abc123"  # You can dynamically generate this if needed
+                        conversational_chain = st.session_state.conversational_chain
+                        response = conversational_chain.invoke(
+                            {"input": user_input},
+                            {"configurable": {"session_id": session_id}}
+                        )
+                        context_docs = response.get('context', [])
+                        st.session_state.chat_history.append({"user": user_input, "bot": response['answer'], "context_docs": context_docs})
+                    except Exception as e:
+                        st.error(f"Error in chat: {e}")
+
+            if 'chat_history' not in st.session_state:
+                st.session_state.chat_history = []
+
+            for message in st.session_state.chat_history:
+                st.markdown(user_template.format(msg=message['user']), unsafe_allow_html=True)
+                st.markdown(bot_template.format(msg=message['bot']), unsafe_allow_html=True)
 
         # Download Dataset
         if st.sidebar.button("Download dataset", key='download_btn'):
