@@ -42,10 +42,13 @@ user_template = '''
     </div>
 </div>
 '''
-
+# Descripe Data
 def describe_data(df):
     """Generates descriptive statistics for the DataFrame."""
     return df.describe()
+
+
+# Info Data
 def info_data(df):
     """Replicates df.info() output as a DataFrame."""
     buffer = {
@@ -54,6 +57,8 @@ def info_data(df):
         "Dtype": [df[col].dtype for col in df.columns],
     }
     return pd.DataFrame(buffer)
+
+# Visualize Data
 def visualize_data(df, column):
     """Generates visualizations for the selected column."""
     fig, ax = plt.subplots()
@@ -78,41 +83,75 @@ def correlation_matrix(df):
     plt.title("Correlation Matrix (Numeric Columns)")
     return fig
 
+
+
 def missing_value_analysis(df):
     """Displays the number of missing values per column."""
     missing_values = df.isnull().sum()
     st.write("Missing Values per Column:")
     st.table(missing_values)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.heatmap(df.isnull(), cmap="viridis", cbar=True, ax=ax)
-    plt.title("Missing Values Heatmap")
-    st.pyplot(fig)
+    if missing_values.sum() > 0:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.heatmap(df.isnull(), cmap="viridis", cbar=True, ax=ax)
+        plt.title("Missing Values Heatmap")
+        st.pyplot(fig)
+    else:
+        st.info("No missing values to visualize.")
 
 def handle_missing_values(df, method="mean", column=None):
     """Handles missing values based on the selected method and column."""
-    if method == "mean":
-        if column:
-            df[column].fillna(df[column].mean(), inplace=True)
+    try:
+        # Initialize a flag to check if changes were made
+        changes_made = False
+
+        if method == "mean":
+            if column:
+                if pd.api.types.is_numeric_dtype(df[column]):
+                    df[column].fillna(df[column].mean(), inplace=True)
+                    changes_made = True
+                else:
+                    st.warning(f"Column '{column}' is not numeric. Mean imputation is not applicable.")
+            else:
+                numeric_columns = df.select_dtypes(include=['number']).columns
+                df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
+                changes_made = True
+        elif method == "median":
+            if column:
+                if pd.api.types.is_numeric_dtype(df[column]):
+                    df[column].fillna(df[column].median(), inplace=True)
+                    changes_made = True
+                else:
+                    st.warning(f"Column '{column}' is not numeric. Median imputation is not applicable.")
+            else:
+                numeric_columns = df.select_dtypes(include=['number']).columns
+                df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].median())
+                changes_made = True
+        elif method == "mode":
+            if column:
+                df[column].fillna(df[column].mode()[0], inplace=True)
+                changes_made = True
+            else:
+                df = df.fillna(df.mode().iloc[0])
+                changes_made = True
+        elif method == "drop":
+            if column:
+                df.dropna(subset=[column], inplace=True)
+                changes_made = True
+            else:
+                df.dropna(inplace=True)
+                changes_made = True
         else:
-            df.fillna(df.mean(), inplace=True)
-    elif method == "median":
-        if column:
-            df[column].fillna(df[column].median(), inplace=True)
-        else:
-            df.fillna(df.median(), inplace=True)
-    elif method == "mode":
-        if column:
-            df[column].fillna(df[column].mode()[0], inplace=True)
-        else:
-            df.fillna(df.mode().iloc[0], inplace=True)
-    elif method == "drop":
-        if column:
-            df.dropna(subset=[column], inplace=True)
-        else:
-            df.dropna(inplace=True)
-    else:
-        st.error("Invalid method for handling missing values.")
-    return df
+            st.warning("Invalid method for handling missing values.")
+            return df, changes_made
+
+        # If changes were made, return modified dataframe
+        return df, changes_made
+    
+    except Exception as e:
+        st.warning(f"An error occurred while handling missing values: {e}")
+        return df, changes_made
+
+
 
 def handle_duplicates(df):
     """Handles duplicate rows in the DataFrame."""
@@ -162,72 +201,101 @@ def handle_outliers(df, column, lower_bound, upper_bound, method='clip'):
         st.error("Invalid method for handling outliers.")
     return df
 
+
 def data_types_analysis(df):
     """Displays data type information and allows conversion."""
     st.header("Data Types Analysis")
     st.write(df.dtypes)
     st.subheader("Convert Data Types:")
-    
-    if 'data_type_analysis_clicked' in st.session_state and st.session_state['data_type_analysis_clicked']:
-        selected_column = st.selectbox("Select a column to convert", df.columns, key="convert_col")
-        new_type = st.selectbox("Select the new data type", ["int", "float", "str", "datetime"], key="new_type")
-        convert_button = st.button("Convert Data Type", key='convert_btn')
-        if convert_button:
-            try:
-                if new_type == "datetime":
-                    df[selected_column] = pd.to_datetime(df[selected_column],errors='coerce')
-                else:
-                    df[selected_column] = df[selected_column].astype(new_type)
-                st.session_state['data'] = df
-                st.session_state['type_converted'] = True
-                reset_all_flags()
-                st.success(f"Column '{selected_column}' converted to {new_type} successfully!")
-            except Exception as e:
-                st.error(f"Error converting column '{selected_column}': {e}")
-    return df
+    try:
+        if 'data_type_analysis_clicked' in st.session_state and st.session_state['data_type_analysis_clicked']:
+            selected_column = st.selectbox("Select a column to convert", df.columns, key="convert_col")
+            new_type = st.selectbox("Select the new data type", ["int", "float", "str", "datetime"], key="new_type")
+            convert_button = st.button("Convert Data Type", key='convert_btn')
+            if convert_button:
+                try:
+                    if new_type == "datetime":
+                        df[selected_column] = pd.to_datetime(df[selected_column],errors='coerce')
+                    else:
+                        df[selected_column] = df[selected_column].astype(new_type)
+                    st.session_state['data'] = df
+                    st.session_state['type_converted'] = True
+                    reset_all_flags()
+                    st.success(f"Column '{selected_column}' converted to {new_type} successfully!")
+                except Exception as e:
+                    st.warning(f"Error converting column '{selected_column}': {e}")
+        return df
+    except Exception as e:
+        st.warning(f"An error occurred while handling missing values: {e}")
+        return df
+
 
 def column_names_analysis(df):
     """Displays column name information and allows renaming of columns."""
     st.header("Column Name Analysis")
+
+    # Define df2 in case it doesn't exist
+    if 'df2' not in st.session_state:
+        st.session_state['df2'] = df.copy()  # Backup the original data
+
+    # Initialize the flag to control showing updated data
+    if 'show_updated' not in st.session_state:
+        st.session_state['show_updated'] = False
+
+    # Display current column names and provide renaming options
     st.subheader("Current Column Names:")
     st.write(df.columns)
-    st.subheader("Rename Columns:")
 
+    st.subheader("Rename Columns:")
+    
     new_column_names = {}
     for col in df.columns:
         new_name = st.text_input(f"Rename '{col}' to:", value=col, key=f"rename_{col}")
         new_column_names[col] = new_name
-    rename_button = st.button("Apply Column Renaming", key='rename_btn')
+
+    # Button to apply the column renaming
+    rename_button = st.button("Preview Changes", key='rename_btn')
     if rename_button:
-        try:    
-            df.rename(columns=new_column_names, inplace=True)
-            st.session_state['data']=df
-            st.session_state['columns_renamed'] = True
-            reset_all_flags()
-            st.success("Columns renamed successfully!")
+        try:
+            # Update df2 with new column names
+            df2 = df.rename(columns=new_column_names, inplace=False)
+            st.session_state['df2'] = df2  # Store the updated data in session state
+            st.session_state['show_updated'] = True  # Allow showing updated data
+            st.success("Columns renamed successfully! Please review the updated data.")
         except Exception as e:
             st.error(f"Error renaming columns: {e}")
-    
-    # rename_cols = st.checkbox("Rename columns", key='rename_columns_checkbox')
-    
 
-    # if 'rename_columns_checkbox' in st.session_state and st.session_state['rename_columns_checkbox']:
-    #         new_column_names = {}
-    #         for col in df.columns:
-    #             new_name = st.text_input(f"Rename '{col}' to:", value=col, key=f"rename_{col}")
-    #             new_column_names[col] = new_name
-    #         rename_button = st.button("Apply Column Renaming", key='rename_btn')
-    #         if rename_button:
-    #             try:
-    #                 df.rename(columns=new_column_names, inplace=True)
-    #                 st.session_state['data']=df
-    #                 st.session_state['columns_renamed'] = True
-    #                 reset_all_flags()
-    #                 st.success("Columns renamed successfully!")
-    #             except Exception as e:
-    #                 st.error(f"Error renaming columns: {e}")
-    return df
+    # Show the updated data after renaming
+    if st.session_state['show_updated']:
+        # Show the before and after data
+        st.subheader("Before Renaming:")
+        st.write(df)  # Show original data
 
+        st.subheader("After Renaming:")
+        st.write(st.session_state['df2'])  # Show renamed data
+
+        # Display "OK" button to confirm changes
+        confirm_button = st.button("OK", key='confirm_btn')
+
+        if confirm_button:
+            # Save the updated data to session state and show the final view
+            st.session_state['data'] = st.session_state['df2']  # Save updated data
+            st.session_state['show_updated'] = False  # Hide the updated data section
+            st.session_state['final_view'] = True  # Show final view
+            # Show "Final Data" section after confirming
+            st.subheader("Final Data:")
+            st.write(st.session_state['data'])
+        else:
+            # If "OK" hasn't been clicked, don't show final data
+            st.write("Review the updated data and click OK to confirm changes.")
+
+    else:
+        # If no update has been made, show the original data
+        st.subheader("Original Data:")
+        st.write(df)
+
+    # Return the final updated data
+    return st.session_state.get('data', df)
 
 
 
