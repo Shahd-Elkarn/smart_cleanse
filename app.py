@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 from methods import *
+import streamlit as st
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
+
 
 def main():
     st.set_page_config(layout="wide")
@@ -38,6 +46,7 @@ def main():
                 "Outlier Analysis",
                 "Data Visualization",
                 "Correlation Matrix",
+                "Machine Learning Models",
                 "Chat Using RAG"
             )
         )
@@ -65,8 +74,63 @@ def main():
             st.header("Data Description")
             st.table(describe_data(df))
 
+        elif section == "Machine Learning Models":
+            st.subheader("Machine Learning Models")
 
-        # Data Type Analysis
+        # Feature and Target Selection
+            features = st.multiselect("Select feature columns", df.columns)
+            labels = st.multiselect("Select target column", df.columns)
+        
+            if features and labels:
+                features = df[features].values
+                labels = df[labels].values
+                train_percnt = st.slider("Select % to train model", 1, 100)
+                train_percnt = train_percnt / 100
+                x_train, x_test, y_train, y_test = train_test_split(features, labels, train_size=train_percnt, random_state=1)
+
+                # Select Algorithm
+                alg = ['XGBoost Classifier', 'Support Vector Machine', 'Random Forest Classifier']
+                classifier = st.selectbox("Which algorithm?", alg)
+
+                # Train and Evaluate Model
+                if classifier == 'XGBoost Classifier':
+                    try:
+                        XG = XGBClassifier()
+                        XG.fit(x_train, y_train)
+                        acc = XG.score(x_test, y_test)
+                        st.write("Accuracy: ", acc)
+                        pred_XG = XG.predict(x_test)
+                        cm_XG = confusion_matrix(y_test, pred_XG)
+                        st.write('Confusion Matrix: ', cm_XG)
+                    except Exception as e:
+                        st.error(f"Error with XGBoost Classifier: {e}")
+
+                elif classifier == 'Support Vector Machine':
+                    try:
+                        svm = SVC()
+                        svm.fit(x_train, y_train)
+                        acc = svm.score(x_test, y_test)
+                        st.write("Accuracy: ", acc)
+                        pred_svm = svm.predict(x_test)
+                        cm_svm = confusion_matrix(y_test, pred_svm)
+                        st.write('Confusion Matrix: ', cm_svm)
+                    except Exception as e:
+                        st.error(f"Error with Support Vector Machine: {e}")
+
+                elif classifier == 'Random Forest Classifier':
+                    try:
+                        RFC = RandomForestClassifier()
+                        RFC.fit(x_train, y_train)
+                        acc = RFC.score(x_test, y_test)
+                        st.write("Accuracy: ", acc)
+                        pred_RFC = RFC.predict(x_test)
+                        cm_RFC = confusion_matrix(y_test, pred_RFC)
+                        st.write('Confusion Matrix: ', cm_RFC)
+                    except Exception as e:
+                        st.error(f"Error with Random Forest Classifier: {e}")
+
+
+
         elif section == "Data Type Analysis":
             st.session_state['data_type_analysis_clicked'] = True
 
@@ -83,64 +147,45 @@ def main():
             column_to_convert = st.selectbox("Select Column to Convert Data Type", df.columns)
             new_data_type = st.selectbox("Select New Data Type", ["int", "float", "str", "datetime"])
 
-            # Flag to track if conversion was successful
-            conversion_successful = False
-
             if st.button("Preview Conversion", key='preview_conversion'):
                 try:
-                    # Make a copy of the dataframe for preview
                     st.session_state['df_preview'] = df.copy()
-
                     if new_data_type == "int":
-                        # Check if the column contains strings that can't be converted to int
                         if st.session_state['df_preview'][column_to_convert].apply(lambda x: isinstance(x, str)).any():
                             raise ValueError("Cannot convert from string to int. Please clean your data first.")
                         st.session_state['df_preview'][column_to_convert] = st.session_state['df_preview'][column_to_convert].astype(int)
-                    
                     elif new_data_type == "float":
                         st.session_state['df_preview'][column_to_convert] = st.session_state['df_preview'][column_to_convert].astype(float)
-                    
                     elif new_data_type == "str":
                         st.session_state['df_preview'][column_to_convert] = st.session_state['df_preview'][column_to_convert].astype(str)
-                    
                     elif new_data_type == "datetime":
                         st.session_state['df_preview'][column_to_convert] = pd.to_datetime(st.session_state['df_preview'][column_to_convert])
 
-                    # If no exception was raised, set the flag to True
-                    conversion_successful = True
-
                     st.write("### Data After Type Conversion (Preview)")
                     st.write(st.session_state['df_preview'])
-                    st.write("### Data Types After Conversion:")
-                    st.write(st.session_state['df_preview'].dtypes)
 
                 except ValueError as ve:
-                    st.warning(f"Conversion Error: {ve}")
-                    conversion_successful = False  # Reset the flag if a warning occurs
+                    st.error(f"Conversion Error: {ve}")
                 except Exception as e:
-                    st.warning(f"Error previewing conversion: {e}")
-                    conversion_successful = False  # Reset the flag if a warning occurs
+                    st.error(f"Error previewing conversion: {e}")
 
-            # Only show the "OK" and "Cancel" buttons if conversion preview was successful
-            if conversion_successful:
-                if 'df_preview' in st.session_state:
-                    if st.button("OK", key='confirm_conversion'):
-                        df = st.session_state['df_preview']
-                        st.session_state['data'] = df
-                        st.session_state['type_converted'] = True
-                        st.success(f"Column '{column_to_convert}' successfully converted to {new_data_type}.")
-                    elif st.button("Cancel", key='cancel_conversion'):
-                        st.warning("Conversion cancelled. Original data remains unchanged.")
+            if 'df_preview' in st.session_state:
+                if st.button("OK", key='confirm_conversion'):
+                    df = st.session_state['df_preview']
+                    st.session_state['data'] = df
+                    st.session_state['type_converted'] = True
+                    st.success(f"Column '{column_to_convert}' successfully converted to {new_data_type}.")
+                elif st.button("Cancel", key='cancel_conversion'):
+                    st.warning("Conversion cancelled. Original data remains unchanged.")
 
-            # Display final data and types only if conversion was successful
-            if 'type_converted' in st.session_state and st.session_state['type_converted'] and conversion_successful:
+            # Display data after conversion if conversion happened
+            if 'type_converted' in st.session_state and st.session_state['type_converted']:
                 st.write("### Final Data After Type Conversion")
                 st.write(df)
                 st.write("### Updated Data Types:")
                 st.write(df.dtypes)
                 st.session_state['type_converted'] = False
                 reset_all_flags()
-
 
 
 

@@ -201,7 +201,6 @@ def handle_outliers(df, column, lower_bound, upper_bound, method='clip'):
         st.error("Invalid method for handling outliers.")
     return df
 
-
 def data_types_analysis(df):
     """Displays data type information and allows conversion."""
     st.header("Data Types Analysis")
@@ -228,8 +227,6 @@ def data_types_analysis(df):
     except Exception as e:
         st.warning(f"An error occurred while handling missing values: {e}")
         return df
-
-
 def column_names_analysis(df):
     """Displays column name information and allows renaming of columns."""
     st.header("Column Name Analysis")
