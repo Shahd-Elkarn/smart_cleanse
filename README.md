@@ -38,7 +38,33 @@ This project is a Streamlit-based interactive tool designed to assist in explori
 
 🔧 Installation  
 Clone this repository:
-
+1. Clone the repository:
 ```bash
 git clone https://github.com/your-username/smart_cleanse.git  
-cd smart_cleanse  
+cd smart_cleanse
+
+2. Create a Virtual Environment:
+```bash
+python -m venv venv  
+
+3. Activate the Virtual Environment:
+   - Windos :
+   ```bash
+   venv\Scripts\activate
+
+   - macOS/Linux :
+   ```bash
+   source venv/bin/activate
+
+4. Install Required Packages:
+```bash
+pip install -r requirments.txt
+
+5. Run the Streamlit Application:
+```bash
+streamlit run app.py  
+
+
+  
+
+
