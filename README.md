@@ -46,24 +46,29 @@ cd smart_cleanse
 
 2. Create a Virtual Environment:
 ```
-python -m venv venv  ```
+python -m venv venv
+ ```
 
 3. Activate the Virtual Environment:
    - Windos :
    ```
-   venv\Scripts\activate```
+   venv\Scripts\activate
+   ```
 
    - macOS/Linux :
    ```
-   source venv/bin/activate```
+   source venv/bin/activate
+   ```
 
 4. Install Required Packages:
 ```
-pip install -r requirments.txt```
+pip install -r requirments.txt
+```
 
 5. Run the Streamlit Application:
 ```
-streamlit run app.py  ```
+streamlit run app.py
+```
 
 
   
