@@ -1,4 +1,4 @@
-# smart_cleanse
+# Smart Cleanse
 Data Quality Analysis and Cleaning Tool
 
 ## Demo Video
