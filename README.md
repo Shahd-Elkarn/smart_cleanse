@@ -40,7 +40,7 @@ This project is a Streamlit-based interactive tool designed to assist in explori
 Clone this repository:
 1. Clone the repository:
 ```
-git clone https://github.com/your-username/smart_cleanse.git  
+git clone https://github.com/Shahd-Elkarn/smart_cleanse.git 
 cd smart_cleanse
 ```
 
